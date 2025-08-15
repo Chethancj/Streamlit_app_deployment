@@ -323,7 +323,7 @@ import plotly.express as px
 # -------------------------
 # Load saved model and scaler
 # -------------------------
-model = joblib.load("log_reg_model.pkl")
+model = joblib.load("LogisticRegression_Multinomial_model.pkl")
 scaler = joblib.load("scaler.pkl")
 
 features = [
