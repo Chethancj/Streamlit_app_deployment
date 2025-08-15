@@ -312,7 +312,7 @@ try:
 except ImportError:
     print(colored("Could not save coefficients to Excel. Please install openpyxl (`pip install openpyxl`).", "red"))
     coef_df.to_csv("simulated_diabetes_data.csv")
-    print(colored("saved simulated_diabetes_data.csv" instead.", "cyan"))
+    
 
 import streamlit as st
 import pandas as pd
