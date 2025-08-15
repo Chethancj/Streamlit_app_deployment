@@ -1,0 +1,13 @@
+numpy
+pandas
+scikit-learn
+joblib
+tensorflow
+imbalanced-learn
+colorama
+termcolor
+streamlit
+pyngrok
+xgboost
+plotly
+openpyxl
