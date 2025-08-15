@@ -314,6 +314,7 @@ except ImportError:
     coef_df.to_csv("simulated_diabetes_data.csv")
     
 
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -323,23 +324,46 @@ import plotly.express as px
 # -------------------------
 # Load saved model and scaler
 # -------------------------
-model = joblib.load("LogisticRegression_Multinomial_model.pkl")
-scaler = joblib.load("scaler.pkl")
+def load_model():
+    try:
+        loaded_object = joblib.load("LogisticRegression_Multinomial_model.pkl")
+        if not isinstance(loaded_object, tuple) or len(loaded_object) != 2:
+            # This check might be redundant if joblib.load raises an error for incompatible files
+            # but keeping it for clarity.
+            raise TypeError("Error loading model: Expected a tuple of (model, scaler).")
 
-features = [
-    "age", "bmi", "hba1c", "avg_glucose_7d", "carbs", "insulin",
-    "activity", "sleep_hours", "stress_level", "diet_quality",
-    "smoking", "alcohol", "med_adherence", "hypertension", "kidney_disease"
-]
+        model, scaler = loaded_object
 
+        # Feature columns should ideally be saved with the model or scaler
+        # For now, we use the predefined list from the training script.
+        feature_cols = [
+            "glucose", "carbs", "insulin", "activity", "stress", "time_of_day",
+            "age", "bmi", "hba1c", "hypertension", "kidney_disease", "type_diabetes",
+            "duration_since_dx", "sleep_hours", "diet_quality", "smoking_status",
+            "alcohol_units_week", "med_adherence", "glucose_trend_3h",
+            "avg_glucose_7d", "time_since_last_insulin", "hyper_events_past_week"
+        ]
+        return model, scaler, feature_cols
+    except FileNotFoundError:
+        st.error("Error loading model: LogisticRegression_Multinomial_model.pkl not found.")
+        raise # Re-raise the exception after logging
+    except Exception as e:
+        st.error(f"Failed to load model: {str(e)}")
+        raise # Re-raise the exception to see the traceback
+
+model, scaler, feature_cols = load_model()
+
+# Define class labels and suggestions
 class_labels = {
-    0: "Normal",
-    1: "Mild Hyperglycemia",
-    2: "Moderate Hyperglycemia",
-    3: "Severe Hyperglycemia"
+    0: "Hypo",
+    1: "Normal",
+    2: "Mild Hyperglycemia",
+    3: "Moderate Hyperglycemia",
+    4: "Severe Hyperglycemia"
 }
 
 suggestions = {
+    "Hypo": "Seek urgent medical advice.",
     "Normal": "Maintain current lifestyle, continue regular monitoring.",
     "Mild Hyperglycemia": "Review diet and activity levels, consider adjusting insulin/carbs.",
     "Moderate Hyperglycemia": "Increase physical activity, improve diet, consult physician soon.",
@@ -350,52 +374,98 @@ suggestions = {
 # Streamlit UI
 # -------------------------
 st.title("🩺 Hyperglycemia Risk Calculator (Logistic Regression)")
-
 st.markdown("Enter patient details to predict hyperglycemia risk:")
 
-# Collect inputs
-inputs = {}
-inputs["age"] = st.slider("Age", 18, 90, 45)
-inputs["bmi"] = st.slider("BMI", 15.0, 45.0, 25.0)
-inputs["hba1c"] = st.slider("HbA1c (%)", 4.5, 14.0, 6.0)
-inputs["avg_glucose_7d"] = st.slider("Average Glucose (7 days)", 60, 400, 120)
-inputs["carbs"] = st.slider("Carbohydrate Intake (g/day)", 50, 500, 250)
-inputs["insulin"] = st.slider("Insulin Dose (units/day)", 0, 100, 20)
-inputs["activity"] = st.slider("Physical Activity (mins/day)", 0, 180, 30)
-inputs["sleep_hours"] = st.slider("Sleep Hours", 3, 12, 7)
-inputs["stress_level"] = st.slider("Stress Level (1=low, 10=high)", 1, 10, 5)
-inputs["diet_quality"] = st.slider("Diet Quality (1=poor, 10=excellent)", 1, 10, 5)
-inputs["smoking"] = st.selectbox("Smoking", [0, 1])
-inputs["alcohol"] = st.selectbox("Alcohol Consumption", [0, 1])
-inputs["med_adherence"] = st.slider("Medication Adherence (%)", 0, 100, 80)
-inputs["hypertension"] = st.selectbox("Hypertension", [0, 1])
-inputs["kidney_disease"] = st.selectbox("Kidney Disease", [0, 1])
+# Input collection with validation
+def get_user_inputs():
+    inputs = {}
+    col1, col2 = st.columns(2)
 
-input_df = pd.DataFrame([inputs])
+    with col1:
+        inputs["glucose"] = st.slider("Glucose (mg/dL)", 40, 400, 140)
+        inputs["carbs"] = st.slider("Carbohydrate Intake (grams)", 0, 100, 50)
+        inputs["insulin"] = st.slider("Insulin (units)", 0, 20, 8)
+        inputs["activity"] = st.slider("Physical Activity (minutes/day)", 0, 180, 30)
+        inputs["stress"] = st.selectbox("Stress (0=low, 1=high)", [0, 1])
+        inputs["time_of_day"] = st.selectbox("Time of Day (0=morning, 1=afternoon, 2=evening)", [0, 1, 2])
+        inputs["age"] = st.slider("Age", 18, 90, 55)
+        inputs["bmi"] = st.slider("BMI", 15.0, 50.0, 28.0)
+        inputs["hba1c"] = st.slider("HbA1c (%)", 4.0, 15.0, 7.5)
+
+    with col2:
+        inputs["hypertension"] = st.selectbox("Hypertension (0=no, 1=yes)", [0, 1])
+        inputs["kidney_disease"] = st.selectbox("Kidney Disease (0=no, 1=yes)", [0, 1])
+        inputs["type_diabetes"] = st.selectbox("Type of Diabetes (1=Type 1, 2=Type 2)", [1, 2])
+        inputs["duration_since_dx"] = st.slider("Duration since diagnosis (years)", 0, 50, 8)
+        inputs["sleep_hours"] = st.slider("Sleep Hours", 3, 12, 7)
+        inputs["diet_quality"] = st.selectbox("Diet Quality (1=poor, 2=average, 3=good)", [1, 2, 3])
+        inputs["smoking_status"] = st.selectbox("Smoking Status (0=non, 1=former, 2=current)", [0, 1, 2])
+        inputs["alcohol_units_week"] = st.slider("Alcohol Units per Week", 0, 20, 3)
+        inputs["med_adherence"] = st.selectbox("Medication Adherence (0=adherent, 1=missed, 2=irregular)", [0, 1, 2])
+
+    inputs["glucose_trend_3h"] = st.selectbox("Glucose Trend (3h) (-1=falling, 0=stable, 1=rising)", [-1, 0, 1])
+    inputs["avg_glucose_7d"] = st.slider("Average Glucose (7 days) (mg/dL)", 60, 400, 145)
+    inputs["time_since_last_insulin"] = st.slider("Time since last insulin (hours)", 0, 24, 4)
+    inputs["hyper_events_past_week"] = st.slider("Hyperglycemic events past week", 0, 10, 2)
+
+    return inputs
 
 # -------------------------
-# Prediction
+# Prediction Function
 # -------------------------
+def make_prediction(input_data):
+    try:
+        # Create DataFrame and ensure correct column order
+        input_df = pd.DataFrame([input_data])
+        input_df = input_df[feature_cols]  # Ensure correct column order
+
+        # Scale the input data
+        input_scaled = scaler.transform(input_df)
+
+        # Make prediction
+        probs = model.predict_proba(input_scaled)[0]
+        pred_class = np.argmax(probs)
+
+        return probs, pred_class
+
+    except Exception as e:
+        st.error(f"Prediction failed: {str(e)}")
+        st.write("Debug Info:")
+        st.write("Input DataFrame columns:", input_df.columns.tolist())
+        st.write("Expected columns:", feature_cols)
+        return None, None
+
+# -------------------------
+# Main App
+# -------------------------
+inputs = get_user_inputs()
+
 if st.button("Predict Risk"):
-    input_scaled = scaler.transform((input_df))
-    probs = model.predict_proba(input_scaled)[0]
-    pred_class = np.argmax(probs)
-    label = class_labels[pred_class]
+    if model is None or scaler is None:
+        st.error("Model or scaler not loaded. Please check the logs for details.")
+    else:
+        with st.spinner("Calculating risk..."):
+            probs, pred_class = make_prediction(inputs)
 
-    st.subheader(f"Predicted Risk: **{label}**")
-    st.markdown(f"💡 Suggestion: {suggestions[label]}")
+            if pred_class is not None:
+                label = class_labels[pred_class]
 
-    # Probability bar chart
-    prob_df = pd.DataFrame({
-        "Risk Category": [class_labels[i] for i in range(len(probs))],
-        "Probability": probs
-    })
+                # Display results
+                st.subheader(f"Predicted Risk: **{label}**")
+                st.markdown(f"💡 Suggestion: {suggestions[label]}")
 
-    fig = px.bar(prob_df, x="Risk Category", y="Probability",
-                 color="Risk Category", text="Probability",
-                 color_discrete_sequence=px.colors.qualitative.Set2)
+                # Probability visualization
+                prob_df = pd.DataFrame({
+                    "Risk Category": [class_labels[i] for i in range(len(probs))],
+                    "Probability": probs
+                })
 
-    fig.update_traces(texttemplate='%{text:.2f}', textposition="outside")
-    fig.update_layout(yaxis=dict(range=[0,1]), showlegend=False)
+                fig = px.bar(prob_df, x="Risk Category", y="Probability",
+                            color="Risk Category", text="Probability",
+                            color_discrete_sequence=px.colors.qualitative.Set2)
 
-    st.plotly_chart(fig, use_container_width=True)
+                fig.update_traces(texttemplate='%{text:.2f}', textposition="outside")
+                fig.update_layout(yaxis=dict(range=[0,1]), showlegend=False,
+                                title="Predicted Probability Distribution")
+
+                st.plotly_chart(fig, use_container_width=True)
