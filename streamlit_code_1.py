@@ -231,7 +231,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+X_test_scaled = scaler.transform((X_test))
 
 
 # STEP 3: Handle Class Imbalance
@@ -377,7 +377,7 @@ input_df = pd.DataFrame([inputs])
 # Prediction
 # -------------------------
 if st.button("Predict Risk"):
-    input_scaled = scaler.transform(input_df)
+    input_scaled = scaler.transform((input_df))
     probs = model.predict_proba(input_scaled)[0]
     pred_class = np.argmax(probs)
     label = class_labels[pred_class]
